@@ -1,0 +1,9 @@
+apiVersion: jjsiv.io/v1alpha1
+kind: LoggingPipeline
+metadata:
+  labels:
+    app.kubernetes.io/name: logging-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: loggingpipeline-sample
+spec:
+  # TODO(user): Add fields here
