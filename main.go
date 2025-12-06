@@ -13,6 +13,7 @@ type Input interface {
 type Tail struct {
 	Name string `yaml:"name"`
 	Path string `yaml:"path"`
+	I    int64  `yaml:"i,omitempty"`
 }
 
 func (t Tail) Input() {}

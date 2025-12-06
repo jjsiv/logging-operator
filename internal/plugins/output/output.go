@@ -1,5 +1,7 @@
 package output
 
-type Output struct {
-	Stdout *Stdout `json:"stdout,omitempty" yaml:"stdout,omitempty"`
+import "github.com/jjsiv/logging-operator/internal/fluentbit"
+
+type Output interface {
+	ToFluentBitOutput() *fluentbit.Output
 }

@@ -25,12 +25,15 @@ import (
 
 // FluentBitSpec defines the desired state of FluentBit
 type FluentBitSpec struct {
-	Image            string           `json:"image,omitempty"`
-	PipelineSelector PipelineSelector `json:"pipelineSelector,omitempty"`
+	Image            string               `json:"image,omitempty"`
+	Config           *FluentBitConfig     `json:"config,omitempty"`
+	PipelineSelector metav1.LabelSelector `json:"pipelineSelector,omitempty"`
 }
 
-type PipelineSelector struct {
-	MatchLabels map[string]string `json:"matchLabels,omitempty"`
+type FluentBitConfig struct {
+	Flush    *float64 `json:"flush,omitempty"`
+	Grace    *int64   `json:"grace,omitempty"`
+	LogLevel *string  `json:"logLevel,omitempty"`
 }
 
 // FluentBitStatus defines the observed state of FluentBit.

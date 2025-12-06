@@ -1,5 +1,7 @@
 package input
 
-type Input struct {
-	Tail *Tail `json:"tail,omitempty" yaml:"tail,omitempty"`
+import "github.com/jjsiv/logging-operator/internal/fluentbit"
+
+type Input interface {
+	ToFluentBitInput() *fluentbit.Input
 }

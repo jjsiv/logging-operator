@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"github.com/jjsiv/logging-operator/internal/fluentbit"
 	"github.com/jjsiv/logging-operator/internal/plugins/input"
 	"github.com/jjsiv/logging-operator/internal/plugins/output"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,8 +28,34 @@ import (
 
 // LoggingPipelineSpec defines the desired state of LoggingPipeline
 type LoggingPipelineSpec struct {
-	Inputs  *input.Input
-	Outputs *output.Output
+	Inputs  *PipelineInputs  `json:"inputs,omitempty"`
+	Outputs *PipelineOutputs `json:"outputs,omitempty"`
+}
+
+type PipelineInputs struct {
+	Tail *input.Tail `json:"tail,omitempty"`
+}
+
+func (pi *PipelineInputs) ToFluentBitInputs() []fluentbit.Input {
+	var inputs []fluentbit.Input
+	if pi.Tail != nil {
+		inputs = append(inputs, pi.Tail.ToFluentBitInput())
+	}
+
+	return inputs
+}
+
+func (po *PipelineOutputs) ToFluentBitOutputs() []fluentbit.Output {
+	var outputs []fluentbit.Output
+	if po.Stdout != nil {
+		outputs = append(outputs, po.Stdout.ToFluentBitOutput())
+	}
+
+	return outputs
+}
+
+type PipelineOutputs struct {
+	Stdout *output.Stdout `json:"stdout,omitempty"`
 }
 
 // LoggingPipelineStatus defines the observed state of LoggingPipeline.

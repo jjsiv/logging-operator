@@ -39,17 +39,6 @@ type LoggingPipelineReconciler struct {
 
 func (r *LoggingPipelineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = logf.FromContext(ctx)
-	// Create FluentBitConfig struct from LoggingPipeline
-	// Create/update ConfigMap on the cluster from FluentBitConfig
-	// To avoid rebuilding entire config everytime, we should build a main config file and then one for each pipeline...
-	// So the ConfigMap structure could have structure like this:
-	// data:
-	//   main.yaml: |
-	//     includes:
-	//     - *.yaml
-	//   my-namespace-my-logging-pipeline.yaml: |
-	//     pipeline:
-	//       inputs: ...
 
 	return ctrl.Result{}, nil
 }
