@@ -17,6 +17,10 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+
 	"github.com/jjsiv/logging-operator/internal/fluentbit"
 	"github.com/jjsiv/logging-operator/internal/plugins/input"
 	"github.com/jjsiv/logging-operator/internal/plugins/output"
@@ -36,13 +40,17 @@ type PipelineInputs struct {
 	Tail *input.Tail `json:"tail,omitempty"`
 }
 
-func (pi *PipelineInputs) ToFluentBitInputs() []fluentbit.Input {
+func (pi *PipelineInputs) ToFluentBitInputs(opts *input.BuildOptions) []fluentbit.Input {
 	var inputs []fluentbit.Input
 	if pi.Tail != nil {
-		inputs = append(inputs, pi.Tail.ToFluentBitInput())
+		inputs = append(inputs, pi.Tail.ToFluentBitInput(opts))
 	}
 
 	return inputs
+}
+
+type PipelineOutputs struct {
+	Stdout *output.Stdout `json:"stdout,omitempty"`
 }
 
 func (po *PipelineOutputs) ToFluentBitOutputs() []fluentbit.Output {
@@ -52,10 +60,6 @@ func (po *PipelineOutputs) ToFluentBitOutputs() []fluentbit.Output {
 	}
 
 	return outputs
-}
-
-type PipelineOutputs struct {
-	Stdout *output.Stdout `json:"stdout,omitempty"`
 }
 
 // LoggingPipelineStatus defines the observed state of LoggingPipeline.
@@ -99,6 +103,15 @@ type LoggingPipeline struct {
 	// status defines the observed state of LoggingPipeline
 	// +optional
 	Status LoggingPipelineStatus `json:"status,omitzero"`
+}
+
+// GenerateTag generates a unique tag for this pipeline
+func (lp *LoggingPipeline) GenerateTag() string {
+	input := fmt.Sprintf("%s-%s", lp.Namespace, lp.Name)
+	hash := sha256.Sum256([]byte(input))
+	tag := hex.EncodeToString(hash[:])[:16]
+
+	return tag + ".*"
 }
 
 // +kubebuilder:object:root=true

@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -28,8 +29,10 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/goccy/go-yaml"
 	"github.com/jjsiv/logging-operator/api/v1alpha1"
 	"github.com/jjsiv/logging-operator/internal/fluentbit"
+	"github.com/jjsiv/logging-operator/internal/plugins/input"
 )
 
 // FluentBitReconciler reconciles a FluentBit object
@@ -75,6 +78,25 @@ func (r *FluentBitReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		configs[cmKeyName] = buildFluentBitPipelineConfig(&lp)
 	}
 
+	// TODO: separate function and set owner + watches
+	var cmData map[string]string
+	for key, conf := range configs {
+		data, err := yaml.Marshal(conf)
+		if err != nil {
+			logger.Error(err, "failed to marshal FluentBit config", "key", key)
+			continue
+		}
+		cmData[key] = string(data)
+	}
+
+	cm := corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      flb.Name + "-config",
+			Namespace: flb.Namespace,
+		},
+		Data: cmData,
+	}
+
 	// Once FluentBit CR is created, we create a DaemonSet and a ConfigMap containing just main.yaml:
 	// data:
 	//   main.yaml: |
@@ -95,7 +117,12 @@ func (r *FluentBitReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 }
 
 func buildFluentBitPipelineConfig(lp *v1alpha1.LoggingPipeline) *fluentbit.FluentBitConfig {
-	inputs := lp.Spec.Inputs.ToFluentBitInputs()
+	opts := input.BuildOptions{
+		Tag:       lp.GenerateTag(),
+		Namespace: lp.Namespace,
+	}
+
+	inputs := lp.Spec.Inputs.ToFluentBitInputs(&opts)
 	outputs := lp.Spec.Outputs.ToFluentBitOutputs()
 
 	pipeline := fluentbit.FluentBitConfigPipelineSpec{}

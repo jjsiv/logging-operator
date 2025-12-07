@@ -1,6 +1,8 @@
 package input
 
 import (
+	"fmt"
+
 	"github.com/jjsiv/logging-operator/internal/fluentbit"
 	"github.com/jjsiv/logging-operator/internal/fluentbit/inputs"
 )
@@ -13,8 +15,21 @@ type Tail struct {
 	BufferMaxSize string `json:"bufferMaxSize,omitempty" yaml:"bufferMaxSize,omitempty"`
 }
 
-func (t *Tail) ToFluentBitInput() fluentbit.Input {
+// TODO: we need to set tag and path
+func (t *Tail) ToFluentBitInput(opts *BuildOptions) fluentbit.Input {
+	logRoot := "/var/log/pods"
+	logFiles := "*.log"
+
+	var logPaths []string
+	if len(t.Pods) == 0 {
+		logPaths = append(logPaths, fmt.Sprintf("%s/%s_*/*/%s", logRoot, opts.Namespace, logFiles))
+	} else {
+		for _, pod := range t.Pods {
+
+		}
+	}
 	tail := inputs.Tail{
+		Path:          logRoot + "/*/*/*.log",
 		ReadFromHead:  t.ReadFromHead,
 		BufferMaxSize: t.BufferMaxSize,
 	}
