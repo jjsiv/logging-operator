@@ -31,8 +31,8 @@ import (
 
 	"github.com/goccy/go-yaml"
 	"github.com/jjsiv/logging-operator/api/v1alpha1"
+	"github.com/jjsiv/logging-operator/api/v1alpha1/input"
 	"github.com/jjsiv/logging-operator/internal/fluentbit"
-	"github.com/jjsiv/logging-operator/internal/plugins/input"
 )
 
 // FluentBitReconciler reconciles a FluentBit object
@@ -49,12 +49,12 @@ func (r *FluentBitReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	logger := logf.FromContext(ctx).WithValues("fluentbit", req.NamespacedName)
 
 	var flb v1alpha1.FluentBit
-	if err := r.Get(ctx, req.NamespacedName, &v1alpha1.FluentBit{}); err != nil {
+	if err := r.Get(ctx, req.NamespacedName, &flb); err != nil {
 		logger.Error(err, "unable to fetch FluentBit")
 		return ctrl.Result{}, err
 	}
 
-	var configs map[string]*fluentbit.FluentBitConfig
+	configs := make(map[string]*fluentbit.FluentBitConfig)
 	configs["main.yaml"] = buildMainFluentBitConfig(&flb)
 	logger.Info("built main FluentBit config")
 
@@ -78,8 +78,7 @@ func (r *FluentBitReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		configs[cmKeyName] = buildFluentBitPipelineConfig(&lp)
 	}
 
-	// TODO: separate function and set owner + watches
-	var cmData map[string]string
+	cmData := make(map[string]string)
 	for key, conf := range configs {
 		data, err := yaml.Marshal(conf)
 		if err != nil {
@@ -94,7 +93,19 @@ func (r *FluentBitReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			Name:      flb.Name + "-config",
 			Namespace: flb.Namespace,
 		},
-		Data: cmData,
+	}
+
+	_, err = ctrl.CreateOrUpdate(ctx, r.Client, &cm, func() error {
+		if err := ctrl.SetControllerReference(&flb, &cm, r.Scheme); err != nil {
+			return err
+		}
+
+		cm.Data = cmData
+		return nil
+	})
+	if err != nil {
+		logger.Error(err, "failed to create or update FluentBit ConfigMap")
+		return ctrl.Result{}, err
 	}
 
 	// Once FluentBit CR is created, we create a DaemonSet and a ConfigMap containing just main.yaml:
@@ -170,6 +181,7 @@ func buildMainFluentBitConfig(flb *v1alpha1.FluentBit) *fluentbit.FluentBitConfi
 func (r *FluentBitReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.FluentBit{}).
+		Owns(&corev1.ConfigMap{}).
 		Watches(
 			&v1alpha1.LoggingPipeline{},
 			handler.EnqueueRequestsFromMapFunc(r.findFluentBitsForLoggingPipeline),

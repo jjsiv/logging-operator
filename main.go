@@ -46,5 +46,8 @@ func main() {
 		fmt.Println("err", err)
 	}
 
+	mip := make(map[string]string)
+	mip["a"] = "b"
+
 	fmt.Println(string(b))
 }

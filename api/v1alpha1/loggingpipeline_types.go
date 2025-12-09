@@ -21,9 +21,9 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/jjsiv/logging-operator/api/v1alpha1/input"
+	"github.com/jjsiv/logging-operator/api/v1alpha1/output"
 	"github.com/jjsiv/logging-operator/internal/fluentbit"
-	"github.com/jjsiv/logging-operator/internal/plugins/input"
-	"github.com/jjsiv/logging-operator/internal/plugins/output"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

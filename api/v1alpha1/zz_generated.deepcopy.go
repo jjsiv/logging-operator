@@ -21,8 +21,8 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"github.com/jjsiv/logging-operator/internal/plugins/input"
-	"github.com/jjsiv/logging-operator/internal/plugins/output"
+	"github.com/jjsiv/logging-operator/api/v1alpha1/input"
+	"github.com/jjsiv/logging-operator/api/v1alpha1/output"
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
