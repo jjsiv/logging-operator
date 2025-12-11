@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -45,6 +46,8 @@ type FluentBitReconciler struct {
 // +kubebuilder:rbac:groups=jjsiv.io,resources=fluentbits,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=jjsiv.io,resources=fluentbits/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=jjsiv.io,resources=fluentbits/finalizers,verbs=update
+// +kubebuilder:rbac:groups=jjsiv.io,resources=loggingpipelines,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;update;patch
 
 // TODO: perhaps we should not actually handle config creation and daemonset here.
 // Using another controller that is able to trigger reconciliation whenever needed might be better
@@ -52,6 +55,7 @@ type FluentBitReconciler struct {
 // LP controller could list FluentBits to check which one matches its pipeline and trigger reconciliation as needed.
 func (r *FluentBitReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := logf.FromContext(ctx).WithValues("fluentbit", req.NamespacedName)
+	logger.Info("reconciliation started")
 
 	var flb v1alpha1.FluentBit
 	if err := r.Get(ctx, req.NamespacedName, &flb); err != nil {
@@ -113,23 +117,74 @@ func (r *FluentBitReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, err
 	}
 
-	// Once FluentBit CR is created, we create a DaemonSet and a ConfigMap containing just main.yaml:
-	// data:
-	//   main.yaml: |
-	//     service:
-	//       flush: 1
-	//     includes:
-	//     - *.yaml
-	// Then we find all LoggingPipelines for our selectors and build the FluentBit pipelines...
-	// data:
-	//   my-namespace-my-logging-pipeline.yaml: |
-	//     pipeline:
-	//       inputs: ...
-	// Each pipeline can be saved as its own key so we can avoid rebuilding entire config every time.
-	// We also watch for changes on LoggingPipelines so we can rebuild them.
-	// NOTE: we might actually have to rebuild always due to first creation/in case of deletion?
+	newDs := buildFluentBitDaemonSet(&flb)
+	ds := appsv1.DaemonSet{
+		ObjectMeta: newDs.ObjectMeta,
+	}
 
+	_, err = ctrl.CreateOrUpdate(ctx, r.Client, &ds, func() error {
+		if err := ctrl.SetControllerReference(&flb, &ds, r.Scheme); err != nil {
+			return err
+		}
+
+		ds = *newDs
+		return nil
+	})
+	if err != nil {
+		logger.Error(err, "failed to create or update FluentBit DaemonSet")
+		return ctrl.Result{}, err
+	}
+
+	logger.Info("reconciliation finished")
 	return ctrl.Result{}, nil
+}
+
+func buildFluentBitDaemonSet(fb *v1alpha1.FluentBit) *appsv1.DaemonSet {
+	dsLabels := map[string]string{
+		"app": fb.Name,
+	}
+
+	ds := appsv1.DaemonSet{
+		ObjectMeta: fb.ObjectMeta,
+		Spec: appsv1.DaemonSetSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: dsLabels,
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: dsLabels,
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "fluent-bit",
+							Image: fb.Spec.Image,
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      fb.Name + "-config",
+									MountPath: "/fluent-bit/etc/",
+								},
+							},
+						},
+					},
+					Volumes: []corev1.Volume{
+						{
+							Name: fb.Name + "-config",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: fb.Name + "-config",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return &ds
 }
 
 func buildFluentBitPipelineConfig(lp *v1alpha1.LoggingPipeline) *fluentbit.FluentBitConfig {
