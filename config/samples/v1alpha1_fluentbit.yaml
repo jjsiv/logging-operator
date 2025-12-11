@@ -6,7 +6,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: fluentbit-sample
 spec:
-  config: {}
+  image: docker.io/fluent/fluent-bit:4.2.0
   pipelineSelector:
     matchLabels:
       pipeline/enabled: "true"

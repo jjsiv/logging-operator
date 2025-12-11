@@ -48,6 +48,7 @@ type FluentBitReconciler struct {
 // +kubebuilder:rbac:groups=jjsiv.io,resources=fluentbits/finalizers,verbs=update
 // +kubebuilder:rbac:groups=jjsiv.io,resources=loggingpipelines,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=get;list;watch;create;update;patch;delete
 
 // TODO: perhaps we should not actually handle config creation and daemonset here.
 // Using another controller that is able to trigger reconciliation whenever needed might be better
@@ -127,7 +128,9 @@ func (r *FluentBitReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return err
 		}
 
-		ds = *newDs
+		ds.Spec = newDs.Spec
+		ds.Labels = newDs.Labels
+		ds.Annotations = newDs.Annotations
 		return nil
 	})
 	if err != nil {
@@ -145,7 +148,10 @@ func buildFluentBitDaemonSet(fb *v1alpha1.FluentBit) *appsv1.DaemonSet {
 	}
 
 	ds := appsv1.DaemonSet{
-		ObjectMeta: fb.ObjectMeta,
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fb.Name,
+			Namespace: fb.Namespace,
+		},
 		Spec: appsv1.DaemonSetSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: dsLabels,
@@ -159,10 +165,18 @@ func buildFluentBitDaemonSet(fb *v1alpha1.FluentBit) *appsv1.DaemonSet {
 						{
 							Name:  "fluent-bit",
 							Image: fb.Spec.Image,
+							Args: []string{
+								"-c",
+								"/etc/fluent-bit/main.yaml",
+							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      fb.Name + "-config",
 									MountPath: "/fluent-bit/etc/",
+								},
+								{
+									Name:      "logs",
+									MountPath: "/var/log/pods",
 								},
 							},
 						},
@@ -175,6 +189,14 @@ func buildFluentBitDaemonSet(fb *v1alpha1.FluentBit) *appsv1.DaemonSet {
 									LocalObjectReference: corev1.LocalObjectReference{
 										Name: fb.Name + "-config",
 									},
+								},
+							},
+						},
+						{
+							Name: "logs",
+							VolumeSource: corev1.VolumeSource{
+								HostPath: &corev1.HostPathVolumeSource{
+									Path: "/var/log/pods",
 								},
 							},
 						},
