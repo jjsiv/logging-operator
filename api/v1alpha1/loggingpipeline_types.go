@@ -53,10 +53,10 @@ type PipelineOutputs struct {
 	Stdout *output.Stdout `json:"stdout,omitempty"`
 }
 
-func (po *PipelineOutputs) ToFluentBitOutputs() []fluentbit.Output {
+func (po *PipelineOutputs) ToFluentBitOutputs(opts *output.BuildOptions) []fluentbit.Output {
 	var outputs []fluentbit.Output
 	if po.Stdout != nil {
-		outputs = append(outputs, po.Stdout.ToFluentBitOutput())
+		outputs = append(outputs, po.Stdout.ToFluentBitOutput(opts))
 	}
 
 	return outputs

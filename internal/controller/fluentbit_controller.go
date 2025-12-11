@@ -32,6 +32,7 @@ import (
 	"github.com/goccy/go-yaml"
 	"github.com/jjsiv/logging-operator/api/v1alpha1"
 	"github.com/jjsiv/logging-operator/api/v1alpha1/input"
+	"github.com/jjsiv/logging-operator/api/v1alpha1/output"
 	"github.com/jjsiv/logging-operator/internal/fluentbit"
 )
 
@@ -45,6 +46,10 @@ type FluentBitReconciler struct {
 // +kubebuilder:rbac:groups=jjsiv.io,resources=fluentbits/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=jjsiv.io,resources=fluentbits/finalizers,verbs=update
 
+// TODO: perhaps we should not actually handle config creation and daemonset here.
+// Using another controller that is able to trigger reconciliation whenever needed might be better
+// LoggingPipelines controller would need to be aware where to store the configuration though.
+// LP controller could list FluentBits to check which one matches its pipeline and trigger reconciliation as needed.
 func (r *FluentBitReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := logf.FromContext(ctx).WithValues("fluentbit", req.NamespacedName)
 
@@ -128,13 +133,19 @@ func (r *FluentBitReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 }
 
 func buildFluentBitPipelineConfig(lp *v1alpha1.LoggingPipeline) *fluentbit.FluentBitConfig {
-	opts := input.BuildOptions{
-		Tag:       lp.GenerateTag(),
+	tag := lp.GenerateTag()
+	// TODO: shared opts for all plugins?
+	inputOpts := input.BuildOptions{
+		Tag:       tag,
+		Namespace: lp.Namespace,
+	}
+	outputOpts := output.BuildOptions{
+		Tag:       tag,
 		Namespace: lp.Namespace,
 	}
 
-	inputs := lp.Spec.Inputs.ToFluentBitInputs(&opts)
-	outputs := lp.Spec.Outputs.ToFluentBitOutputs()
+	inputs := lp.Spec.Inputs.ToFluentBitInputs(&inputOpts)
+	outputs := lp.Spec.Outputs.ToFluentBitOutputs(&outputOpts)
 
 	pipeline := fluentbit.FluentBitConfigPipelineSpec{}
 	for _, in := range inputs {
@@ -204,8 +215,12 @@ func (r *FluentBitReconciler) findFluentBitsForLoggingPipeline(ctx context.Conte
 
 	var requests []reconcile.Request
 	for _, fb := range fluentBitList.Items {
-		selector := labels.SelectorFromSet(fb.Spec.PipelineSelector.MatchLabels)
-		if selector.Matches(labels.Set(pipeline.Labels)) {
+		selectors, err := metav1.LabelSelectorAsSelector(&fb.Spec.PipelineSelector)
+		// TODO: error handling
+		if err != nil {
+			continue
+		}
+		if selectors.Matches(labels.Set(pipeline.Labels)) {
 			requests = append(requests, reconcile.Request{
 				NamespacedName: client.ObjectKeyFromObject(&fb),
 			})

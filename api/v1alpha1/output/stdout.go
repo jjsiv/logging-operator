@@ -7,6 +7,8 @@ import (
 
 type Stdout struct{}
 
-func (s *Stdout) ToFluentBitOutput() fluentbit.Output {
-	return outputs.Stdout{}
+func (s *Stdout) ToFluentBitOutput(opts *BuildOptions) fluentbit.Output {
+	return outputs.Stdout{
+		Tag: opts.Tag,
+	}
 }
